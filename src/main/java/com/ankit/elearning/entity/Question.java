@@ -1,11 +1,11 @@
 package com.ankit.elearning.entity;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "questions")
 public class Question {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -13,39 +13,42 @@ public class Question {
     @Column(nullable = false)
     private String questionText;
 
-    @Column(nullable = false) private String optionA;
-    @Column(nullable = false) private String optionB;
-    @Column(nullable = false) private String optionC;
-    @Column(nullable = false) private String optionD;
+    @Column(nullable = false)
+    private String optionA;
+    @Column(nullable = false)
+    private String optionB;
+    @Column(nullable = false)
+    private String optionC;
+    @Column(nullable = false)
+    private String optionD;
 
     @Column(nullable = false)
-    private String correctAnswer; // must be A, B, C, or D
+    private String correctAnswer;
 
-    private int marks = 1;
-    private int negativeMarks = 0;
+    private Integer marks = 1;
 
     @ManyToOne
     @JoinColumn(name = "created_by_id")
-    private User createdBy; // track author
+    @JsonIgnore
+    private User createdBy;
 
-    // getters & setters
+    // Getters and Setters
     public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
     public String getQuestionText() { return questionText; }
-    public void setQuestionText(String q) { this.questionText = q; }
+    public void setQuestionText(String questionText) { this.questionText = questionText; }
     public String getOptionA() { return optionA; }
-    public void setOptionA(String a) { this.optionA = a; }
+    public void setOptionA(String optionA) { this.optionA = optionA; }
     public String getOptionB() { return optionB; }
-    public void setOptionB(String b) { this.optionB = b; }
+    public void setOptionB(String optionB) { this.optionB = optionB; }
     public String getOptionC() { return optionC; }
-    public void setOptionC(String c) { this.optionC = c; }
+    public void setOptionC(String optionC) { this.optionC = optionC; }
     public String getOptionD() { return optionD; }
-    public void setOptionD(String d) { this.optionD = d; }
+    public void setOptionD(String optionD) { this.optionD = optionD; }
     public String getCorrectAnswer() { return correctAnswer; }
-    public void setCorrectAnswer(String ca) { this.correctAnswer = ca; }
-    public int getMarks() { return marks; }
-    public void setMarks(int m) { this.marks = m; }
-    public int getNegativeMarks() { return negativeMarks; }
-    public void setNegativeMarks(int nm) { this.negativeMarks = nm; }
+    public void setCorrectAnswer(String correctAnswer) { this.correctAnswer = correctAnswer; }
+    public Integer getMarks() { return marks; }
+    public void setMarks(Integer marks) { this.marks = marks; }
     public User getCreatedBy() { return createdBy; }
-    public void setCreatedBy(User u) { this.createdBy = u; }
+    public void setCreatedBy(User createdBy) { this.createdBy = createdBy; }
 }

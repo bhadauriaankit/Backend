@@ -1,46 +1,93 @@
 package com.ankit.elearning.service;
 
-import com.ankit.elearning.entity.Test;
-import com.ankit.elearning.entity.User;
-import com.ankit.elearning.repository.TestRepository;
-import com.ankit.elearning.repository.UserRepository;
+import com.ankit.elearning.dto.TestRequest;
+import com.ankit.elearning.entity.*;
+import com.ankit.elearning.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import java.util.*;
 
 @Service
 public class TestService {
 
-    @Autowired private TestRepository testRepository;
-    @Autowired private UserRepository userRepository;
+    @Autowired
+    private TestRepository testRepository;
 
-    public Test createTest(Test test, String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        test.setCreatedBy(user);
-        test.setPublished(false); // needs admin approval
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private QuestionRepository questionRepository;
+
+    @Transactional
+    public Test createTest(TestRequest req, String authorEmail) {
+        User author = userRepository.findByEmail(authorEmail)
+                .orElseThrow(() -> new RuntimeException("Author not found"));
+
+        Test test = new Test();
+        test.setTitle(req.getTitle());
+        test.setDescription(req.getDescription());
+        test.setDuration(req.getDuration());
+        test.setAuthor(author);
+        test.setPublished(false);
+
+        if (req.getQuestionIds() != null && !req.getQuestionIds().isEmpty()) {
+            List<Question> questions = questionRepository.findAllById(req.getQuestionIds());
+            test.setQuestions(questions);
+        } else {
+            test.setQuestions(new ArrayList<>());
+        }
+
         return testRepository.save(test);
     }
 
-    // students only see published tests
+    public List<Map<String, Object>> getPublishedTestsWithDetails() {
+        List<Test> tests = testRepository.findByPublishedTrue();
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        for (Test test : tests) {
+            Map<String, Object> testMap = new HashMap<>();
+            testMap.put("id", test.getId());
+            testMap.put("title", test.getTitle());
+            testMap.put("description", test.getDescription());
+            testMap.put("duration", test.getDuration());
+            testMap.put("published", test.isPublished());
+            testMap.put("questionCount", test.getQuestions() != null ? test.getQuestions().size() : 0);
+            result.add(testMap);
+        }
+        return result;
+    }
+
     public List<Test> getPublishedTests() {
         return testRepository.findByPublishedTrue();
     }
 
-    // admin sees all
     public List<Test> getAllTests() {
         return testRepository.findAll();
     }
 
-    public Test publishTest(Long testId) {
-        Test test = testRepository.findById(testId)
+    public List<Test> getTestsByAuthor(String authorEmail) {
+        User author = userRepository.findByEmail(authorEmail)
+                .orElseThrow(() -> new RuntimeException("Author not found"));
+        return testRepository.findByAuthor(author);
+    }
+
+    public Test getById(Long id) {
+        return testRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Test not found"));
+    }
+
+    @Transactional
+    public Test publishTest(Long id) {
+        Test test = getById(id);
         test.setPublished(true);
         return testRepository.save(test);
     }
 
-    public void deleteTest(Long testId) {
-        testRepository.deleteById(testId);
+    @Transactional
+    public void deleteTest(Long id) {
+        testRepository.deleteById(id);
     }
 }
