@@ -21,6 +21,8 @@ public class UserService {
     @Autowired private BCryptPasswordEncoder passwordEncoder;
     @Autowired private AuthenticationManager authenticationManager;
     @Autowired private JwtUtil jwtUtil;
+    @Autowired
+    private EmailService emailService;
 
     public void registerUser(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
@@ -32,6 +34,8 @@ public class UserService {
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setRole(request.getRole() != null ? Role.valueOf(request.getRole().toUpperCase()) : Role.STUDENT);
         userRepository.save(user);
+
+        emailService.sendWelcomeEmail(user.getEmail(), user.getName());
     }
 
     public Map<String, Object> loginUser(String email, String password) {

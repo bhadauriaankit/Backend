@@ -28,28 +28,33 @@ public class TestAttempt {
     private Integer totalQuestions;
     private Double percentage;
 
-    @OneToMany(mappedBy = "attempt", cascade = CascadeType.ALL)
-    private java.util.List<AttemptAnswer> answers;
+    public TestAttempt() {}
 
-    // Getters and Setters
+    // Getters and setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
+
     public Test getTest() { return test; }
     public void setTest(Test test) { this.test = test; }
+
     public LocalDateTime getStartTime() { return startTime; }
     public void setStartTime(LocalDateTime startTime) { this.startTime = startTime; }
+
     public LocalDateTime getEndTime() { return endTime; }
     public void setEndTime(LocalDateTime endTime) { this.endTime = endTime; }
+
     public AttemptStatus getStatus() { return status; }
     public void setStatus(AttemptStatus status) { this.status = status; }
+
     public Integer getScore() { return score; }
     public void setScore(Integer score) { this.score = score; }
+
     public Integer getTotalQuestions() { return totalQuestions; }
     public void setTotalQuestions(Integer totalQuestions) { this.totalQuestions = totalQuestions; }
+
     public Double getPercentage() { return percentage; }
     public void setPercentage(Double percentage) { this.percentage = percentage; }
-    public java.util.List<AttemptAnswer> getAnswers() { return answers; }
-    public void setAnswers(java.util.List<AttemptAnswer> answers) { this.answers = answers; }
 }

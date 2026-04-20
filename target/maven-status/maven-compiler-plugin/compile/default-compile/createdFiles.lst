@@ -20,6 +20,7 @@ com/ankit/elearning/security/JwtFilter.class
 com/ankit/elearning/entity/User.class
 com/ankit/elearning/entity/Module.class
 com/ankit/elearning/dto/ResultDetail.class
+com/ankit/elearning/service/EmailService.class
 com/ankit/elearning/dto/SubmitRequest.class
 com/ankit/elearning/repository/ModuleRepository.class
 com/ankit/elearning/controller/ModuleController.class

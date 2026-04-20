@@ -13,155 +13,143 @@ import java.util.stream.Collectors;
 @Service
 public class TestAttemptService {
 
+    @Autowired private TestAttemptRepository attemptRepo;
+    @Autowired private TestRepository testRepo;
+    @Autowired private UserRepository userRepo;
+    @Autowired private QuestionRepository questionRepo;
+    @Autowired private AttemptAnswerRepository answerRepo;
     @Autowired
-    private TestAttemptRepository testAttemptRepository;
-
-    @Autowired
-    private AttemptAnswerRepository attemptAnswerRepository;
-
-    @Autowired
-    private TestRepository testRepository;
-
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private QuestionRepository questionRepository;
-
-    private static final int MAX_ATTEMPTS_PER_DAY = 4;
-    private static final int COOLDOWN_MINUTES = 30;
+    private EmailService emailService;
 
     @Transactional
     public Map<String, Object> startTest(Long testId, String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        System.out.println("=== startTest called ===");
+        System.out.println("testId: " + testId + ", userEmail: " + userEmail);
 
-        if (user.getRole() != Role.STUDENT) {
-            throw new RuntimeException("Only students can take tests");
-        }
+        User user = userRepo.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userEmail));
+        System.out.println("User found: " + user.getEmail());
 
-        Test test = testRepository.findById(testId)
-                .orElseThrow(() -> new RuntimeException("Test not found"));
+        Test test = testRepo.findById(testId)
+                .orElseThrow(() -> new RuntimeException("Test not found: " + testId));
+        System.out.println("Test found: " + test.getTitle() + ", published: " + test.isPublished());
 
         if (!test.isPublished()) {
             throw new RuntimeException("Test is not published yet");
         }
 
-        // Check daily attempt limit for this specific user and test
-        LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
-        long todayAttempts = testAttemptRepository.countByUserAndTestAndStartTimeAfter(user, test, startOfDay);
-
-        if (todayAttempts >= MAX_ATTEMPTS_PER_DAY) {
-            throw new RuntimeException("You have exceeded the daily limit of " + MAX_ATTEMPTS_PER_DAY + " attempts");
-        }
-
-        // Check cooldown period for this specific user
-        Optional<TestAttempt> lastAttempt = testAttemptRepository
-                .findByUserAndTestAndStatusOrderByEndTimeDesc(user, test, AttemptStatus.COMPLETED);
-        if (lastAttempt.isPresent() && lastAttempt.get().getEndTime() != null) {
-            LocalDateTime nextAllowedTime = lastAttempt.get().getEndTime().plusMinutes(COOLDOWN_MINUTES);
-            if (LocalDateTime.now().isBefore(nextAllowedTime)) {
-                long minutesLeft = java.time.Duration.between(LocalDateTime.now(), nextAllowedTime).toMinutes();
-                throw new RuntimeException("Please wait " + minutesLeft + " more minutes before your next attempt");
-            }
-        }
-
-        // Check for incomplete attempt for this specific user
-        Optional<TestAttempt> incompleteAttempt = testAttemptRepository
-                .findByUserAndTestAndStatus(user, test, AttemptStatus.IN_PROGRESS);
-        if (incompleteAttempt.isPresent()) {
-            throw new RuntimeException("You have an incomplete attempt. Please submit it first.");
-        }
-
-        // Create new attempt for this specific user
+        // Create new attempt
         TestAttempt attempt = new TestAttempt();
         attempt.setUser(user);
         attempt.setTest(test);
         attempt.setStatus(AttemptStatus.IN_PROGRESS);
         attempt.setStartTime(LocalDateTime.now());
-
-        TestAttempt savedAttempt = testAttemptRepository.save(attempt);
+        TestAttempt saved = attemptRepo.save(attempt);
+        System.out.println("Attempt saved with ID: " + saved.getId());
 
         Map<String, Object> response = new HashMap<>();
-        response.put("attemptId", savedAttempt.getId());
+        response.put("attemptId", saved.getId());
         response.put("testId", test.getId());
         response.put("testTitle", test.getTitle());
         response.put("duration", test.getDuration());
 
-        List<Map<String, Object>> questionList = new ArrayList<>();
+        List<Map<String, Object>> questions = new ArrayList<>();
         if (test.getQuestions() != null) {
-            questionList = test.getQuestions().stream().map(q -> {
-                Map<String, Object> qMap = new HashMap<>();
-                qMap.put("id", q.getId());
-                qMap.put("questionText", q.getQuestionText());
-                qMap.put("optionA", q.getOptionA());
-                qMap.put("optionB", q.getOptionB());
-                qMap.put("optionC", q.getOptionC());
-                qMap.put("optionD", q.getOptionD());
-                return qMap;
+            questions = test.getQuestions().stream().map(q -> {
+                Map<String, Object> map = new HashMap<>();
+                map.put("id", q.getId());
+                map.put("questionText", q.getQuestionText());
+                map.put("optionA", q.getOptionA());
+                map.put("optionB", q.getOptionB());
+                map.put("optionC", q.getOptionC());
+                map.put("optionD", q.getOptionD());
+                return map;
             }).collect(Collectors.toList());
         }
-        response.put("questions", questionList);
-
-        System.out.println("📝 Test started: User=" + userEmail + ", Test=" + test.getTitle());
+        response.put("questions", questions);
+        System.out.println("Returning response with " + questions.size() + " questions");
         return response;
     }
 
     @Transactional
     public void saveAnswer(Long attemptId, Long questionId, String selectedOption, String userEmail) {
-        TestAttempt attempt = validateAttempt(attemptId, userEmail);
-        if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
-            throw new RuntimeException("Test is already submitted");
+        TestAttempt attempt = attemptRepo.findById(attemptId)
+                .orElseThrow(() -> new RuntimeException("Attempt not found"));
+        if (!attempt.getUser().getEmail().equals(userEmail)) {
+            throw new RuntimeException("Unauthorized");
         }
-
-        Question question = questionRepository.findById(questionId)
+        if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
+            throw new RuntimeException("Test already submitted");
+        }
+        Question question = questionRepo.findById(questionId)
                 .orElseThrow(() -> new RuntimeException("Question not found"));
 
-        Optional<AttemptAnswer> existingAnswer = attemptAnswerRepository.findByAttemptAndQuestion(attempt, question);
-        AttemptAnswer answer = existingAnswer.orElse(new AttemptAnswer());
+        Optional<AttemptAnswer> existing = answerRepo.findByAttemptAndQuestion(attempt, question);
+        AttemptAnswer answer = existing.orElse(new AttemptAnswer());
         answer.setAttempt(attempt);
         answer.setQuestion(question);
         answer.setSelectedOption(selectedOption);
-        answer.setCorrect(question.getCorrectAnswer().equalsIgnoreCase(selectedOption));
-        attemptAnswerRepository.save(answer);
+
+        // Check correctness
+        Set<String> correctSet = new HashSet<>(Arrays.asList(question.getCorrectAnswer().split(",")));
+        Set<String> selectedSet = new HashSet<>(Arrays.asList(selectedOption.split(",")));
+        answer.setCorrect(correctSet.equals(selectedSet));
+
+        answerRepo.save(answer);
     }
 
     @Transactional
     public Map<String, Object> submitTest(Long attemptId, String userEmail) {
-        TestAttempt attempt = validateAttempt(attemptId, userEmail);
+        TestAttempt attempt = attemptRepo.findById(attemptId)
+                .orElseThrow(() -> new RuntimeException("Attempt not found"));
+        if (!attempt.getUser().getEmail().equals(userEmail)) {
+            throw new RuntimeException("Unauthorized");
+        }
         if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
             throw new RuntimeException("Test already submitted");
         }
 
-        List<AttemptAnswer> answers = attemptAnswerRepository.findByAttempt(attempt);
-        int totalQuestions = attempt.getTest().getQuestions().size();
-        int correctAnswers = (int) answers.stream().filter(AttemptAnswer::isCorrect).count();
-        double percentage = (correctAnswers * 100.0) / totalQuestions;
+        List<AttemptAnswer> answers = answerRepo.findByAttempt(attempt);
+        int total = attempt.getTest().getQuestions().size();
+        int correct = (int) answers.stream().filter(AttemptAnswer::isCorrect).count();
+        double percentage = total > 0 ? (correct * 100.0 / total) : 0;
 
-        attempt.setScore(correctAnswers);
-        attempt.setTotalQuestions(totalQuestions);
+        attempt.setScore(correct);
+        attempt.setTotalQuestions(total);
         attempt.setPercentage(percentage);
         attempt.setStatus(AttemptStatus.COMPLETED);
         attempt.setEndTime(LocalDateTime.now());
-        testAttemptRepository.save(attempt);
+        attemptRepo.save(attempt);
+
+        boolean passed = percentage >= 60;
+        emailService.sendTestResultEmail(
+                attempt.getUser().getEmail(),
+                attempt.getUser().getName(),
+                attempt.getTest().getTitle(),
+                correct,
+                total,
+                percentage,
+                passed
+        );
 
         Map<String, Object> result = new HashMap<>();
         result.put("attemptId", attempt.getId());
-        result.put("score", correctAnswers);
-        result.put("totalQuestions", totalQuestions);
+        result.put("score", correct);
+        result.put("totalQuestions", total);
         result.put("percentage", percentage);
-
-        System.out.println("✅ Test submitted: User=" + userEmail + ", Score=" + correctAnswers + "/" + totalQuestions);
         return result;
     }
 
     public Map<String, Object> getResult(Long attemptId, String userEmail) {
-        TestAttempt attempt = validateAttempt(attemptId, userEmail);
+        TestAttempt attempt = attemptRepo.findById(attemptId)
+                .orElseThrow(() -> new RuntimeException("Attempt not found"));
+        if (!attempt.getUser().getEmail().equals(userEmail)) {
+            throw new RuntimeException("Unauthorized");
+        }
         if (attempt.getStatus() != AttemptStatus.COMPLETED) {
             throw new RuntimeException("Test not completed yet");
         }
-
-        List<AttemptAnswer> answers = attemptAnswerRepository.findByAttempt(attempt);
+        List<AttemptAnswer> answers = answerRepo.findByAttempt(attempt);
         Map<String, Object> result = new HashMap<>();
         result.put("attemptId", attempt.getId());
         result.put("score", attempt.getScore());
@@ -170,42 +158,32 @@ public class TestAttemptService {
         result.put("startTime", attempt.getStartTime());
         result.put("endTime", attempt.getEndTime());
 
-        List<Map<String, Object>> answerDetails = answers.stream().map(answer -> {
-            Map<String, Object> detail = new HashMap<>();
-            detail.put("questionText", answer.getQuestion().getQuestionText());
-            detail.put("selectedOption", answer.getSelectedOption());
-            detail.put("correctOption", answer.getQuestion().getCorrectAnswer());
-            detail.put("isCorrect", answer.isCorrect());
-            return detail;
+        List<Map<String, Object>> details = answers.stream().map(a -> {
+            Map<String, Object> d = new HashMap<>();
+            d.put("questionText", a.getQuestion().getQuestionText());
+            d.put("selectedOption", a.getSelectedOption());
+            d.put("correctOption", a.getQuestion().getCorrectAnswer());
+            d.put("isCorrect", a.isCorrect());
+            return d;
         }).collect(Collectors.toList());
-        result.put("answers", answerDetails);
+        result.put("answers", details);
         return result;
     }
 
     public List<Map<String, Object>> getUserAttempts(String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
+        User user = userRepo.findByEmail(userEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        List<TestAttempt> attempts = testAttemptRepository.findByUserOrderByStartTimeDesc(user);
-        return attempts.stream().map(attempt -> {
-            Map<String, Object> map = new HashMap<>();
-            map.put("attemptId", attempt.getId());
-            map.put("testTitle", attempt.getTest().getTitle());
-            map.put("status", attempt.getStatus().toString());
-            map.put("score", attempt.getScore());
-            map.put("totalQuestions", attempt.getTotalQuestions());
-            map.put("percentage", attempt.getPercentage());
-            map.put("startedAt", attempt.getStartTime());
-            map.put("completedAt", attempt.getEndTime());
-            return map;
+        return attemptRepo.findByUserOrderByStartTimeDesc(user).stream().map(a -> {
+            Map<String, Object> m = new HashMap<>();
+            m.put("attemptId", a.getId());
+            m.put("testTitle", a.getTest().getTitle());
+            m.put("status", a.getStatus().toString());
+            m.put("score", a.getScore());
+            m.put("totalQuestions", a.getTotalQuestions());
+            m.put("percentage", a.getPercentage());
+            m.put("startedAt", a.getStartTime());
+            m.put("completedAt", a.getEndTime());
+            return m;
         }).collect(Collectors.toList());
-    }
-
-    private TestAttempt validateAttempt(Long attemptId, String userEmail) {
-        TestAttempt attempt = testAttemptRepository.findById(attemptId)
-                .orElseThrow(() -> new RuntimeException("Attempt not found"));
-        if (!attempt.getUser().getEmail().equals(userEmail)) {
-            throw new RuntimeException("Unauthorized access to this attempt");
-        }
-        return attempt;
     }
 }

@@ -35,6 +35,7 @@
 /Users/bhadauria_ankit/code/elearning/backend/src/main/java/com/ankit/elearning/security/JwtFilter.java
 /Users/bhadauria_ankit/code/elearning/backend/src/main/java/com/ankit/elearning/security/JwtUtil.java
 /Users/bhadauria_ankit/code/elearning/backend/src/main/java/com/ankit/elearning/security/UserDetailsServiceImpl.java
+/Users/bhadauria_ankit/code/elearning/backend/src/main/java/com/ankit/elearning/service/EmailService.java
 /Users/bhadauria_ankit/code/elearning/backend/src/main/java/com/ankit/elearning/service/ModuleService.java
 /Users/bhadauria_ankit/code/elearning/backend/src/main/java/com/ankit/elearning/service/QuestionService.java
 /Users/bhadauria_ankit/code/elearning/backend/src/main/java/com/ankit/elearning/service/TestAttemptService.java
