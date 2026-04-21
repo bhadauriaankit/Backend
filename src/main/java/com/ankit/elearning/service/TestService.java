@@ -21,6 +21,15 @@ public class TestService {
     @Autowired
     private QuestionRepository questionRepository;
 
+    @Autowired
+    private ModuleRepository moduleRepository;  // ADD THIS
+
+    @Autowired
+    private TestAttemptRepository testAttemptRepository;  // ADD THIS
+
+    @Autowired
+    private AttemptAnswerRepository attemptAnswerRepository;  // ADD THIS
+
     @Transactional
     public Test createTest(TestRequest req, String authorEmail) {
         User author = userRepository.findByEmail(authorEmail)
@@ -88,6 +97,30 @@ public class TestService {
 
     @Transactional
     public void deleteTest(Long id) {
-        testRepository.deleteById(id);
+        Test test = testRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Test not found"));
+
+        // 1. Delete all modules of this test
+        List<Module> modules = moduleRepository.findByTestOrderByOrderIndexAsc(test);
+        if (modules != null && !modules.isEmpty()) {
+            moduleRepository.deleteAll(modules);
+        }
+
+        // 2. Delete all test attempts and their answers
+        List<TestAttempt> attempts = testAttemptRepository.findByTest(test);
+        for (TestAttempt attempt : attempts) {
+            List<AttemptAnswer> answers = attemptAnswerRepository.findByAttempt(attempt);
+            if (answers != null && !answers.isEmpty()) {
+                attemptAnswerRepository.deleteAll(answers);
+            }
+            testAttemptRepository.delete(attempt);
+        }
+
+        // 3. Clear questions relationship to avoid foreign key constraint
+        test.setQuestions(null);
+        testRepository.save(test);
+
+        // 4. Finally delete the test
+        testRepository.delete(test);
     }
 }
