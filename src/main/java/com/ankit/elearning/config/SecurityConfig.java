@@ -40,9 +40,10 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
-            .cors(cors -> {})  // uses the CorsConfigurationSource bean below
+            .cors(cors -> {}) // This enables the CORS configuration from the bean below
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // Explicitly allow OPTIONS pre-flight requests
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .anyRequest().authenticated()
@@ -54,10 +55,10 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        // Allow both local development and your deployed Vercel frontend
+        // Here, we add the specific Vercel frontend URL to the allowed origins
         config.setAllowedOriginPatterns(List.of(
-            "http://localhost:3000",
-            "https://e-learning-frontend-nym8.vercel.app"  // <-- add your Vercel URL
+            "http://localhost:3000",                               // For local development
+            "https://e-learning-frontend-8los.vercel.app"          // Your live Vercel frontend URL
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
