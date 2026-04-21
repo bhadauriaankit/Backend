@@ -33,7 +33,15 @@ public class Test {
             joinColumns = @JoinColumn(name = "test_id"),
             inverseJoinColumns = @JoinColumn(name = "question_id")
     )
+
     private List<Question> questions;
+    @OneToMany(mappedBy = "test", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Module> modules;
+
+    // Getters and Setters (add for modules)
+    public List<Module> getModules() { return modules; }
+    public void setModules(List<Module> modules) { this.modules = modules; }
+    // ... existing getters/setters
 
     // Getters and Setters
     public Long getId() { return id; }
