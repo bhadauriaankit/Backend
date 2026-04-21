@@ -16,6 +16,7 @@ public interface TestAttemptRepository extends JpaRepository<TestAttempt, Long> 
     List<TestAttempt> findByUserOrderByStartTimeDesc(User user);
     Optional<TestAttempt> findByUserAndTestAndStatus(User user, Test test, AttemptStatus status);
     Optional<TestAttempt> findByUserAndTestAndStatusOrderByEndTimeDesc(User user, Test test, AttemptStatus status);
+    List<TestAttempt> findByTest(Test test);  // ADD THIS
 
     @Query("SELECT COUNT(t) FROM TestAttempt t WHERE t.user = :user AND t.test = :test AND t.startTime >= :startOfDay")
     long countByUserAndTestAndStartTimeAfter(@Param("user") User user, @Param("test") Test test, @Param("startOfDay") LocalDateTime startOfDay);
