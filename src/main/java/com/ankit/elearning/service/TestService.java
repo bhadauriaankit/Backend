@@ -22,13 +22,13 @@ public class TestService {
     private QuestionRepository questionRepository;
 
     @Autowired
-    private ModuleRepository moduleRepository;  // ADD THIS
+    private ModuleRepository moduleRepository;
 
     @Autowired
-    private TestAttemptRepository testAttemptRepository;  // ADD THIS
+    private TestAttemptRepository testAttemptRepository;
 
     @Autowired
-    private AttemptAnswerRepository attemptAnswerRepository;  // ADD THIS
+    private AttemptAnswerRepository attemptAnswerRepository;
 
     @Transactional
     public Test createTest(TestRequest req, String authorEmail) {
@@ -100,27 +100,31 @@ public class TestService {
         Test test = testRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Test not found"));
 
-        // 1. Delete all modules of this test
-        List<Module> modules = moduleRepository.findByTestOrderByOrderIndexAsc(test);
-        if (modules != null && !modules.isEmpty()) {
-            moduleRepository.deleteAll(modules);
-        }
-
-        // 2. Delete all test attempts and their answers
+        // 1. Delete all answers of attempts belonging to this test
         List<TestAttempt> attempts = testAttemptRepository.findByTest(test);
         for (TestAttempt attempt : attempts) {
             List<AttemptAnswer> answers = attemptAnswerRepository.findByAttempt(attempt);
-            if (answers != null && !answers.isEmpty()) {
+            if (!answers.isEmpty()) {
                 attemptAnswerRepository.deleteAll(answers);
             }
-            testAttemptRepository.delete(attempt);
         }
 
-        // 3. Clear questions relationship to avoid foreign key constraint
+        // 2. Delete all test attempts
+        if (!attempts.isEmpty()) {
+            testAttemptRepository.deleteAll(attempts);
+        }
+
+        // 3. Delete all modules of this test
+        List<Module> modules = moduleRepository.findByTestOrderByOrderIndexAsc(test);
+        if (!modules.isEmpty()) {
+            moduleRepository.deleteAll(modules);
+        }
+
+        // 4. Clear the questions relationship to avoid foreign key issues
         test.setQuestions(null);
         testRepository.save(test);
 
-        // 4. Finally delete the test
+        // 5. Finally delete the test itself
         testRepository.delete(test);
     }
 }
