@@ -114,8 +114,8 @@ public class TestService {
             testAttemptRepository.deleteAll(attempts);
         }
 
-        // 3. Delete all modules of this test
-        List<Module> modules = moduleRepository.findByTestOrderByOrderIndexAsc(test);
+        // 3. Delete all modules of this test – use fully qualified name to avoid conflict with java.lang.Module
+        List<com.ankit.elearning.entity.Module> modules = moduleRepository.findByTestOrderByOrderIndexAsc(test);
         if (!modules.isEmpty()) {
             moduleRepository.deleteAll(modules);
         }
