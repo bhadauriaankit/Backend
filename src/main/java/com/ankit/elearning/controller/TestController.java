@@ -1,107 +1,80 @@
 package com.ankit.elearning.controller;
 
 import com.ankit.elearning.dto.TestRequest;
-import com.ankit.elearning.entity.Test;
 import com.ankit.elearning.service.TestService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.HashMap;
-import java.util.List;
+import org.springframework.web.multipart.MultipartFile;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/tests")
 public class TestController {
 
-    @Autowired
-    private TestService testService;
+    @Autowired private TestService testService;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('AUTHOR','ADMIN')")
-    public ResponseEntity<?> createTest(
-            @RequestBody TestRequest req,
-            @AuthenticationPrincipal org.springframework.security.core.userdetails.User userDetails
-    ) {
+    public ResponseEntity<?> createTest(@Valid @RequestBody TestRequest req,
+                                        @AuthenticationPrincipal UserDetails user) {
         try {
-            System.out.println("=== CREATE TEST REQUEST ===");
-            System.out.println("Author email: " + userDetails.getUsername());
-            System.out.println("Test title: " + req.getTitle());
-            System.out.println("Duration: " + req.getDuration());
-            System.out.println("Question IDs: " + req.getQuestionIds());
-
-            Test test = testService.createTest(req, userDetails.getUsername());
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("message", "Test created successfully");
-            response.put("testId", test.getId());
-            response.put("title", test.getTitle());
-
-            return ResponseEntity.ok(response);
+            var test = testService.createTest(req, user.getUsername());
+            return ResponseEntity.ok(Map.of(
+                "message", "Test created successfully",
+                "testId",  test.getId(),
+                "title",   test.getTitle()
+            ));
         } catch (Exception e) {
-            System.err.println("Error creating test: " + e.getMessage());
-            e.printStackTrace();
-
-            Map<String, String> error = new HashMap<>();
-            error.put("error", e.getMessage());
-            return ResponseEntity.status(500).body(error);
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 
+    /** Published tests — student/author/admin view, safe DTO */
     @GetMapping
     @PreAuthorize("hasAnyRole('STUDENT','AUTHOR','ADMIN')")
     public ResponseEntity<?> getPublishedTests() {
         try {
-            List<Map<String, Object>> tests = testService.getPublishedTestsWithDetails();
-            return ResponseEntity.ok(tests);
+            return ResponseEntity.ok(testService.getPublishedTestsWithDetails());
         } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", e.getMessage());
-            return ResponseEntity.status(500).body(error);
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 
+    /** All tests — author/admin only, safe DTO */
     @GetMapping("/all")
     @PreAuthorize("hasAnyRole('AUTHOR','ADMIN')")
     public ResponseEntity<?> getAllTests() {
         try {
-            List<Test> tests = testService.getAllTests();
-            return ResponseEntity.ok(tests);
+            return ResponseEntity.ok(testService.getAllTestsAsDtos());
         } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", e.getMessage());
-            return ResponseEntity.status(500).body(error);
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 
+    /** My tests — author's own tests, safe DTO */
     @GetMapping("/my-tests")
     @PreAuthorize("hasAnyRole('AUTHOR','ADMIN')")
-    public ResponseEntity<?> getMyTests(
-            @AuthenticationPrincipal org.springframework.security.core.userdetails.User userDetails
-    ) {
+    public ResponseEntity<?> getMyTests(@AuthenticationPrincipal UserDetails user) {
         try {
-            List<Test> tests = testService.getTestsByAuthor(userDetails.getUsername());
-            return ResponseEntity.ok(tests);
+            return ResponseEntity.ok(testService.getTestsByAuthorDto(user.getUsername()));
         } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", e.getMessage());
-            return ResponseEntity.status(500).body(error);
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('STUDENT','AUTHOR','ADMIN')")
-    public ResponseEntity<?> getTestById(@PathVariable Long id) {
+    public ResponseEntity<?> getById(@PathVariable Long id,
+                                     @AuthenticationPrincipal UserDetails user) {
         try {
-            Test test = testService.getById(id);
-            return ResponseEntity.ok(test);
+            return ResponseEntity.ok(testService.getByIdDto(id, user.getUsername()));
         } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", e.getMessage());
-            return ResponseEntity.status(404).body(error);
+            return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
         }
     }
 
@@ -109,12 +82,9 @@ public class TestController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> publishTest(@PathVariable Long id) {
         try {
-            Test test = testService.publishTest(id);
-            return ResponseEntity.ok(test);
+            return ResponseEntity.ok(testService.publishTest(id));
         } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", e.getMessage());
-            return ResponseEntity.badRequest().body(error);
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 
@@ -123,13 +93,22 @@ public class TestController {
     public ResponseEntity<?> deleteTest(@PathVariable Long id) {
         try {
             testService.deleteTest(id);
-            Map<String, String> response = new HashMap<>();
-            response.put("message", "Test deleted successfully");
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(Map.of("message", "Test deleted successfully"));
         } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", e.getMessage());
-            return ResponseEntity.badRequest().body(error);
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/{testId}/upload-questions")
+    @PreAuthorize("hasAnyRole('AUTHOR','ADMIN')")
+    public ResponseEntity<?> uploadQuestions(@PathVariable Long testId,
+                                             @RequestParam("file") MultipartFile file,
+                                             @AuthenticationPrincipal UserDetails user) {
+        try {
+            testService.uploadQuestionsFromCsv(testId, file, user.getUsername());
+            return ResponseEntity.ok(Map.of("message", "Questions uploaded successfully"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 }

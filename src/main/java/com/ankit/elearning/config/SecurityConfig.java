@@ -17,6 +17,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -39,31 +40,57 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf -> csrf.disable())
-            .cors(cors -> {}) // This enables the CORS configuration from the bean below
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                // Explicitly allow OPTIONS pre-flight requests
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/auth/**").permitAll()
-                .anyRequest().authenticated()
-            )
-            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        // Allow all OPTIONS preflight requests
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // Allow auth endpoints
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/docs").permitAll()
+                        // Allow H2 console (dev only)
+                        .requestMatchers("/h2-console/**").permitAll()
+                        // Everything else requires authentication
+                        .anyRequest().authenticated()
+                )
+                // Allow H2 console frames (dev only — remove in prod)
+                .headers(headers -> headers.frameOptions(f -> f.sameOrigin()))
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        // Here, we add the specific Vercel frontend URL to the allowed origins
+
+        // Allow all common dev/prod origins
         config.setAllowedOriginPatterns(List.of(
-            "http://localhost:3000",                               // For local development
-            "https://e-learning-frontend-8los.vercel.app"          // Your live Vercel frontend URL
+                "http://localhost:3000",     // React dev server
+                "http://localhost:3001",     // alternate port
+                "http://127.0.0.1:3000",
+                "https://*.vercel.app",      // Vercel deployments
+                "https://*.netlify.app"      // Netlify deployments
         ));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+
+        config.setAllowedMethods(Arrays.asList(
+                "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
+        ));
+
+        // Allow all headers — important for Authorization: Bearer token
         config.setAllowedHeaders(List.of("*"));
+
+        // Expose Authorization header so frontend can read it if needed
+        config.setExposedHeaders(List.of("Authorization", "Content-Type"));
+
+        // Allow cookies/credentials
         config.setAllowCredentials(true);
-        
+
+        // Cache preflight for 1 hour
+        config.setMaxAge(3600L);
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
